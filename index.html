@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My World - Token Factory & Vault</title>
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; 
+            background-color: #F8F9FA; /* অফ-হোয়াইট ব্যাকগ্রাউন্ড */
+            color: #333333; /* শান্ত টেক্সট কালার */
+            padding: 40px 20px; min-height: 100vh;
+        }
+        .dashboard { max-width: 1000px; margin: 0 auto; }
+        header { text-align: center; margin-bottom: 40px; }
+        header h1 { color: #00BFFF; /* আকাশী নীল হেডলাইন */ font-size: 38px; margin-bottom: 8px; font-weight: 800; }
+        header p { color: #888888; font-size: 15px; }
+        
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+        @media(max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+        
+        /* কার্ড ডিজাইন (চোখে ধরবে না) */
+        .card { 
+            background: #FFFFFF; /* সাদা কার্ড */
+            border: 1px solid #EAEAEA; /* খুব হালকা বর্ডার */
+            padding: 30px; 
+            border-radius: 20px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.03); /* খুবই সামান্য শ্যাডো */
+        }
+        .full-width { grid-column: 1 / -1; }
+        h3 { color: #444444; margin-bottom: 20px; font-size: 20px; }
+        
+        input { 
+            width: 100%; background: #F1F3F5; /* হালকা গ্রে ইনপুট */
+            border: 1px solid #E1E5E9; padding: 14px; border-radius: 12px; 
+            color: #333333; margin-bottom: 15px; font-size: 14px;
+        }
+        input::placeholder { color: #999999; }
+        
+        /* আকাশী রঙের বাটন */
+        button { 
+            width: 100%; background: #00BFFF; /* আকাশী নীল বাটন */
+            color: #FFFFFF; border: none; padding: 14px; border-radius: 12px; 
+            font-weight: 600; font-size: 15px; cursor: pointer; transition: 0.2s; 
+            box-shadow: 0 3px 8px rgba(0,191,255,0.2);
+        }
+        button:hover { background: #0099CC; /* hover করলে সামান্য কালচে নীল */ transform: translateY(-1px); }
+        
+        /* কানেক্ট বাটন */
+        #connectWallet { width: auto; margin-top: 20px; padding: 12px 28px; }
+        
+        /* স্টেক এবং ক্লেইম বাটন */
+        .stake-btn { background: #00BFFF; }
+        .withdraw-btn { background: #CCCCCC; /* ডিসেবল বাটন কালার */ color: #666666; margin-bottom: 0; }
+        .withdraw-btn:hover { background: #AAAAAA; }
+        
+        /* লিস্টিং ডিজাইন */
+        .token-item { 
+            background: #F8F9FA; padding: 14px; border-radius: 12px; 
+            margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;
+            font-size: 14px; border: 1px solid #EAEAEA;
+        }
+        .status { margin-top: 15px; font-size: 13px; color: #999999; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="dashboard">
+    <header>
+        <h1>🌌 My World</h1>
+        <p>Token Factory & Tududu Staking Portal</p>
+        <button id="connectWallet" onclick="connect()">Connect Wallet</button>
+    </header>
+
+    <div class="grid">
+        <div class="card">
+            <h3>🔨 Token Factory</h3>
+            <p style="font-size: 12px; color: #888888; margin-bottom: 15px;">Cost: 1 TUD Token</p>
+            <input type="text" id="tokenName" placeholder="My Coin">
+            <input type="text" id="tokenSymbol" placeholder="MYC">
+            <input type="number" id="tokenSupply" placeholder="1000000">
+            <button onclick="generateToken()">Approve & Mint</button>
+            <div id="factoryStatus" class="status"></div>
+        </div>
+
+        <div class="card">
+            <h3>🥩 Tududu Vault</h3>
+            <p style="font-size: 12px; color: #888888; margin-bottom: 15px;">Reward: 10% Arc / Day</p>
+            <input type="number" id="stakeAmount" placeholder="TUD to Stake">
+            <button onclick="stakeTokens()" class="stake-btn" style="margin-bottom: 12px;">Stake</button>
+            <button onclick="claimAndWithdraw()" class="withdraw-btn">Claim & Unstake</button>
+            <div id="stakingStatus" class="status"></div>
+        </div>
+
+        <div class="card full-width">
+            <h3>📊 Live Token Listings</h3>
+            <div id="tokenList">
+                <p style="color: #BBBBBB; text-align: center;">No tokens yet. Be the first!</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // আপনার লাইভ ডেপ্লয় হওয়া কন্ট্রাক্ট অ্যাড্রেসগুলো এখানে ইনজেক্ট করা হয়েছে
+    const factoryContractAddress = "0x36c655f06D2560cc8C1C4164EB3c04147Ea65d2C";
+    const stakingContractAddress = "0x36c655f06D2560cc8C1C4164EB3c04147Ea65d2C"; 
+    const masterTokenAddress = "0xD2B356474B254B21f14ad769583372ceC50865aA"; 
+
+    const factoryABI = [
+        "function generateToken(string memory _name, string memory _symbol, uint256 _totalSupply) external",
+        "function getDeployedTokens() external view returns (tuple(address tokenAddress, string name, string symbol, address creator)[])"
+    ];
+    const stakingABI = [
+        "function stake(uint256 _amount) external",
+        "function withdraw() external",
+        "function calculateReward(address _user) public view returns (uint256)"
+    ];
+    const erc20ABI = [
+        "function approve(address spender, uint256 amount) public returns (bool)"
+    ];
+
+    let provider, signer, userAddress;
+
+    async function connect() {
+        if(!window.ethereum) return alert("MetaMask not found!");
+        await window.ethereum.request({ method: 'eth_requestAccounts' });
+        provider = new ethers.providers.Web3Provider(window.ethereum);
+        signer = provider.getSigner();
+        userAddress = await signer.getAddress();
+        document.getElementById("connectWallet").innerText = userAddress.substring(0,6) + "...";
+        loadListings();
+    }
+
+    async function generateToken() {
+        if(!signer) return alert("Connect wallet first!");
+        const name = document.getElementById("tokenName").value;
+        const symbol = document.getElementById("tokenSymbol").value;
+        const supply = document.getElementById("tokenSupply").value;
+        const status = document.getElementById("factoryStatus");
+
+        try {
+            status.innerText = "Approving 1 TUD...";
+            const masterTokenContract = new ethers.Contract(masterTokenAddress, erc20ABI, signer);
+            const approveTx = await masterTokenContract.approve(factoryContractAddress, ethers.utils.parseEther("1"));
+            await approveTx.wait();
+
+            status.innerText = "Minting your token...";
+            const factoryContract = new ethers.Contract(factoryContractAddress, factoryABI, signer);
+            const tx = await factoryContract.generateToken(name, symbol, supply);
+            await tx.wait();
+
+            status.innerText = "✅ Successfully Listed!";
+            loadListings();
+        } catch(e) {
+            status.innerText = "❌ Error: " + e.message;
+        }
+    }
+
+    async function stakeTokens() {
+        if(!signer) return alert("Connect wallet first!");
+        const amount = document.getElementById("stakeAmount").value;
+        const status = document.getElementById("stakingStatus");
+
+        try {
+            status.innerText = "Approving TUD...";
+            const masterTokenContract = new ethers.Contract(masterTokenAddress, erc20ABI, signer);
+            const approveTx = await masterTokenContract.approve(stakingContractAddress, ethers.utils.parseEther(amount));
+            await approveTx.wait();
+
+            status.innerText = "Staking...";
+            const stakingContract = new ethers.Contract(stakingContractAddress, stakingABI, signer);
+            const tx = await stakingContract.stake(ethers.utils.parseEther(amount));
+            await tx.wait();
+
+            status.innerText = "✅ Staked!";
+        } catch(e) {
+            status.innerText = "❌ Error: " + e.message;
+        }
+    }
+
+    async function claimAndWithdraw() {
+        if(!signer) return alert("Connect wallet first!");
+        const status = document.getElementById("stakingStatus");
+        try {
+            status.innerText = "Claiming & Unstaking...";
+            const stakingContract = new ethers.Contract(stakingContractAddress, stakingABI, signer);
+            const tx = await stakingContract.withdraw();
+            await tx.wait();
+            status.innerText = "✅ funds released!";
+        } catch(e) {
+            status.innerText = "❌ Error: " + e.message;
+        }
+    }
+
+    async function loadListings() {
+        const listDiv = document.getElementById("tokenList");
+        try {
+            const factoryContract = new ethers.Contract(factoryContractAddress, factoryABI, provider);
+            const tokens = await factoryContract.getDeployedTokens();
+            
+            if(tokens.length === 0) return;
+            listDiv.innerHTML = "";
+
+            tokens.forEach(token => {
+                listDiv.innerHTML += `
+                    <div class="token-item">
+                        <div>
+                            <strong>${token.name} (${token.symbol})</strong><br>
+                            <small style="color:#999999;">${token.tokenAddress}</small>
+                        </div>
+                        <span style="color:#BBBBBB; font-size:12px;">${token.creator.substring(0,6)}...</span>
+                    </div>
+                `;
+            });
+        } catch(e) {
+            console.log(e);
+        }
+    }
+</script>
+</body>
+</html>
