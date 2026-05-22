@@ -46,7 +46,11 @@
         }
         button:hover { background: #0099CC; transform: translateY(-1px); }
         
-        #connectWallet { width: auto; margin-top: 20px; padding: 12px 28px; }
+        /* ওয়ালেট বাটন এরিয়া */
+        .wallet-container { display: flex; justify-content: center; gap: 10px; margin-top: 20px; }
+        #connectWallet { width: auto; padding: 12px 28px; }
+        #disconnectWallet { width: auto; background: #FF4444; padding: 12px 20px; display: none; box-shadow: 0 3px 8px rgba(255,68,68,0.2); }
+        #disconnectWallet:hover { background: #CC3333; }
         
         .faucet-btn { background: #00BFFF; box-shadow: 0 3px 8px rgba(0,191,255,0.2); }
         .faucet-btn:hover { background: #0099CC; }
@@ -69,7 +73,10 @@
     <header>
         <h1>🌌 My World</h1>
         <p>Token Factory & Tududu Staking Portal</p>
-        <button id="connectWallet" onclick="connect()">Connect Wallet</button>
+        <div class="wallet-container">
+            <button id="connectWallet" onclick="connect()">Connect Wallet</button>
+            <button id="disconnectWallet" onclick="disconnect()">Disconnect</button>
+        </div>
     </header>
 
     <div class="grid">
@@ -111,8 +118,6 @@
 <script>
     const factoryContractAddress = "0x36c655f06D2560cc8C1C4164EB3c04147Ea65d2C";
     const stakingContractAddress = "0x36c655f06D2560cc8C1C4164EB3c04147Ea65d2C"; 
-    
-    // আপনার আপডেটেড নতুন টোকেন অ্যাড্রেস
     const masterTokenAddress = "0xe2B5abfE723443039FB06fFD0Baef94F169f4118"; 
 
     const factoryABI = [
@@ -133,17 +138,62 @@
 
     let provider, signer, userAddress;
 
-    async function connect() {
-        if(!window.ethereum) return alert("MetaMask not found!");
-        await window.ethereum.request({ method: 'eth_requestAccounts' });
-        provider = new ethers.providers.Web3Provider(window.ethereum);
-        signer = provider.getSigner();
-        userAddress = await signer.getAddress();
-        document.getElementById("connectWallet").innerText = userAddress.substring(0,6) + "...";
-        loadListings();
+    // মেটামাস্কের লাইভ ওয়ালেট পরিবর্তন ট্র্যাক করার কোড
+    if (window.ethereum) {
+        // ইউজার অ্যাকাউন্ট পরিবর্তন করলে পেজ রিলোড হবে এবং ফ্রেশ পপ-আপ চাইবে
+        window.ethereum.on('accountsChanged', (accounts) => {
+            if (accounts.length === 0) {
+                disconnect();
+            } else {
+                window.location.reload();
+            }
+        });
+
+        // ইউজার নেটওয়ার্ক পরিবর্তন করলে পেজ রিলোড হবে
+        window.ethereum.on('chainChanged', () => {
+            window.location.reload();
+        });
     }
 
-    // ২ ঘণ্টা পর পর ১০টি ফ্রি টোকেন মিন্ট করার ফাংশন
+    window.addEventListener('load', async () => {
+        if (window.ethereum && localStorage.getItem('isWalletConnected') === 'true') {
+            // চেক করা হচ্ছে মেটামাস্কে অলরেডি অ্যাকাউন্ট পারমিশন দেওয়া আছে কিনা
+            const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+            if (accounts.length > 0) {
+                connect();
+            } else {
+                localStorage.removeItem('isWalletConnected');
+            }
+        }
+    });
+
+    async function connect() {
+        if(!window.ethereum) return alert("MetaMask not found!");
+        try {
+            await window.ethereum.request({ method: 'eth_requestAccounts' });
+            provider = new ethers.providers.Web3Provider(window.ethereum);
+            signer = provider.getSigner();
+            userAddress = await signer.getAddress();
+            
+            document.getElementById("connectWallet").innerText = userAddress.substring(0,6) + "...";
+            document.getElementById("disconnectWallet").style.display = "inline-block";
+            localStorage.setItem('isWalletConnected', 'true');
+            loadListings();
+        } catch (e) {
+            console.error("Connection failed", e);
+        }
+    }
+
+    function disconnect() {
+        userAddress = null;
+        signer = null;
+        localStorage.removeItem('isWalletConnected');
+        document.getElementById("connectWallet").innerText = "Connect Wallet";
+        document.getElementById("disconnectWallet").style.display = "none";
+        document.getElementById("tokenList").innerHTML = '<p style="color: #BBBBBB; text-align: center;">Connect wallet to view listings.</p>';
+        alert("UI Disconnected! To completely revoke permission, click the connected green icon inside MetaMask.");
+    }
+
     async function getFreeTokens() {
         if(!signer) return alert("Connect wallet first!");
         const status = document.getElementById("faucetStatus");
