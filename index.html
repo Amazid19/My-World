@@ -46,7 +46,6 @@
         }
         button:hover { background: #0099CC; transform: translateY(-1px); }
         
-        /* ওয়ালেট বাটন এরিয়া */
         .wallet-container { display: flex; justify-content: center; gap: 10px; margin-top: 20px; }
         #connectWallet { width: auto; padding: 12px 28px; }
         #disconnectWallet { width: auto; background: #FF4444; padding: 12px 20px; display: none; box-shadow: 0 3px 8px rgba(255,68,68,0.2); }
@@ -138,18 +137,15 @@
 
     let provider, signer, userAddress;
 
-    // মেটামাস্কের লাইভ ওয়ালেট পরিবর্তন ট্র্যাক করার কোড
     if (window.ethereum) {
-        // ইউজার অ্যাকাউন্ট পরিবর্তন করলে পেজ রিলোড হবে এবং ফ্রেশ পপ-আপ চাইবে
         window.ethereum.on('accountsChanged', (accounts) => {
             if (accounts.length === 0) {
-                disconnect();
+                clearWalletUI();
             } else {
                 window.location.reload();
             }
         });
 
-        // ইউজার নেটওয়ার্ক পরিবর্তন করলে পেজ রিলোড হবে
         window.ethereum.on('chainChanged', () => {
             window.location.reload();
         });
@@ -157,20 +153,28 @@
 
     window.addEventListener('load', async () => {
         if (window.ethereum && localStorage.getItem('isWalletConnected') === 'true') {
-            // চেক করা হচ্ছে মেটামাস্কে অলরেডি অ্যাকাউন্ট পারমিশন দেওয়া আছে কিনা
             const accounts = await window.ethereum.request({ method: 'eth_accounts' });
             if (accounts.length > 0) {
-                connect();
+                connect(false); // অটো কানেক্টের সময় জোর করে পপ-আপ আনা হবে না
             } else {
                 localStorage.removeItem('isWalletConnected');
             }
         }
     });
 
-    async function connect() {
+    async function connect(forceNewPopUp = true) {
         if(!window.ethereum) return alert("MetaMask not found!");
         try {
-            await window.ethereum.request({ method: 'eth_requestAccounts' });
+            // যদি ইউজার ডিসকানেক্ট করার পর আবার নতুন করে কানেক্ট করতে চায়, তবে মেটামাস্কের ফ্রেশ পারমিশন পপ-আপ রিকোয়েস্ট করা হবে
+            if (forceNewPopUp) {
+                await window.ethereum.request({
+                    method: 'wallet_requestPermissions',
+                    params: [{ eth_accounts: {} }]
+                });
+            } else {
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+            }
+
             provider = new ethers.providers.Web3Provider(window.ethereum);
             signer = provider.getSigner();
             userAddress = await signer.getAddress();
@@ -184,14 +188,18 @@
         }
     }
 
+    // ডিসকানেক্ট বাটন চাপলে লোকাল মেমোরি ক্লিয়ার হবে
     function disconnect() {
+        localStorage.removeItem('isWalletConnected');
+        clearWalletUI();
+    }
+
+    function clearWalletUI() {
         userAddress = null;
         signer = null;
-        localStorage.removeItem('isWalletConnected');
         document.getElementById("connectWallet").innerText = "Connect Wallet";
         document.getElementById("disconnectWallet").style.display = "none";
         document.getElementById("tokenList").innerHTML = '<p style="color: #BBBBBB; text-align: center;">Connect wallet to view listings.</p>';
-        alert("UI Disconnected! To completely revoke permission, click the connected green icon inside MetaMask.");
     }
 
     async function getFreeTokens() {
