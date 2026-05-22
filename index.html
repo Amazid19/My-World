@@ -9,54 +9,52 @@
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { 
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; 
-            background-color: #F8F9FA; /* অফ-হোয়াইট ব্যাকগ্রাউন্ড */
-            color: #333333; /* শান্ত টেক্সট কালার */
+            background-color: #F8F9FA; 
+            color: #333333; 
             padding: 40px 20px; min-height: 100vh;
         }
         .dashboard { max-width: 1000px; margin: 0 auto; }
         header { text-align: center; margin-bottom: 40px; }
-        header h1 { color: #00BFFF; /* আকাশী নীল হেডলাইন */ font-size: 38px; margin-bottom: 8px; font-weight: 800; }
+        header h1 { color: #00BFFF; font-size: 38px; margin-bottom: 8px; font-weight: 800; }
         header p { color: #888888; font-size: 15px; }
         
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
         @media(max-width: 768px) { .grid { grid-template-columns: 1fr; } }
         
-        /* কার্ড ডিজাইন (চোখে ধরবে না) */
         .card { 
-            background: #FFFFFF; /* সাদা কার্ড */
-            border: 1px solid #EAEAEA; /* খুব হালকা বর্ডার */
+            background: #FFFFFF; 
+            border: 1px solid #EAEAEA; 
             padding: 30px; 
             border-radius: 20px; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.03); /* খুবই সামান্য শ্যাডো */
+            box-shadow: 0 4px 15px rgba(0,0,0,0.03); 
         }
         .full-width { grid-column: 1 / -1; }
         h3 { color: #444444; margin-bottom: 20px; font-size: 20px; }
         
         input { 
-            width: 100%; background: #F1F3F5; /* হালকা গ্রে ইনপুট */
+            width: 100%; background: #F1F3F5; 
             border: 1px solid #E1E5E9; padding: 14px; border-radius: 12px; 
             color: #333333; margin-bottom: 15px; font-size: 14px;
         }
         input::placeholder { color: #999999; }
         
-        /* আকাশী রঙের বাটন */
         button { 
-            width: 100%; background: #00BFFF; /* আকাশী নীল বাটন */
+            width: 100%; background: #00BFFF; 
             color: #FFFFFF; border: none; padding: 14px; border-radius: 12px; 
             font-weight: 600; font-size: 15px; cursor: pointer; transition: 0.2s; 
             box-shadow: 0 3px 8px rgba(0,191,255,0.2);
         }
-        button:hover { background: #0099CC; /* hover করলে সামান্য কালচে নীল */ transform: translateY(-1px); }
+        button:hover { background: #0099CC; transform: translateY(-1px); }
         
-        /* কানেক্ট বাটন */
         #connectWallet { width: auto; margin-top: 20px; padding: 12px 28px; }
         
-        /* স্টেক এবং ক্লেইম বাটন */
+        .faucet-btn { background: #00BFFF; box-shadow: 0 3px 8px rgba(0,191,255,0.2); }
+        .faucet-btn:hover { background: #0099CC; }
+        
         .stake-btn { background: #00BFFF; }
-        .withdraw-btn { background: #CCCCCC; /* ডিসেবল বাটন কালার */ color: #666666; margin-bottom: 0; }
+        .withdraw-btn { background: #CCCCCC; color: #666666; margin-bottom: 0; }
         .withdraw-btn:hover { background: #AAAAAA; }
         
-        /* লিস্টিং ডিজাইন */
         .token-item { 
             background: #F8F9FA; padding: 14px; border-radius: 12px; 
             margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;
@@ -75,6 +73,13 @@
     </header>
 
     <div class="grid">
+        <div class="card full-width" style="text-align: center;">
+            <h3>🪙 Free Tududu (TUD) Faucet</h3>
+            <p style="color: #666; margin-bottom: 15px; font-size: 14px;">Claim 10 free TUD tokens every 2 hours with no limits!</p>
+            <button onclick="getFreeTokens()" class="faucet-btn" style="width: auto; padding: 12px 35px;">Mint 10 Free TUD</button>
+            <div id="faucetStatus" class="status"></div>
+        </div>
+
         <div class="card">
             <h3>🔨 Token Factory</h3>
             <p style="font-size: 12px; color: #888888; margin-bottom: 15px;">Cost: 1 TUD Token</p>
@@ -104,10 +109,11 @@
 </div>
 
 <script>
-    // আপনার লাইভ ডেপ্লয় হওয়া কন্ট্রাক্ট অ্যাড্রেসগুলো এখানে ইনজেক্ট করা হয়েছে
     const factoryContractAddress = "0x36c655f06D2560cc8C1C4164EB3c04147Ea65d2C";
     const stakingContractAddress = "0x36c655f06D2560cc8C1C4164EB3c04147Ea65d2C"; 
-    const masterTokenAddress = "0xD2B356474B254B21f14ad769583372ceC50865aA"; 
+    
+    // আপনার আপডেটেড নতুন টোকেন অ্যাড্রেস
+    const masterTokenAddress = "0xe2B5abfE723443039FB06fFD0Baef94F169f4118"; 
 
     const factoryABI = [
         "function generateToken(string memory _name, string memory _symbol, uint256 _totalSupply) external",
@@ -121,6 +127,9 @@
     const erc20ABI = [
         "function approve(address spender, uint256 amount) public returns (bool)"
     ];
+    const faucetABI = [
+        "function claimFaucet() external"
+    ];
 
     let provider, signer, userAddress;
 
@@ -132,6 +141,27 @@
         userAddress = await signer.getAddress();
         document.getElementById("connectWallet").innerText = userAddress.substring(0,6) + "...";
         loadListings();
+    }
+
+    // ২ ঘণ্টা পর পর ১০টি ফ্রি টোকেন মিন্ট করার ফাংশন
+    async function getFreeTokens() {
+        if(!signer) return alert("Connect wallet first!");
+        const status = document.getElementById("faucetStatus");
+        status.innerText = "Requesting 10 TUD from Blockchain Faucet...";
+        
+        try {
+            const tokenContract = new ethers.Contract(masterTokenAddress, faucetABI, signer);
+            const tx = await tokenContract.claimFaucet();
+            status.innerText = "Transaction pending... Please wait.";
+            await tx.wait();
+            status.innerText = "✅ Success! 10 TUD Minted into your wallet. Come back in 2 hours!";
+        } catch(e) {
+            if(e.message.includes("Cooldown active") || JSON.stringify(e).includes("Cooldown active")) {
+                status.innerText = "❌ Cooldown active! You can only claim once every 2 hours.";
+            } else {
+                status.innerText = "❌ Error: " + e.message;
+            }
+        }
     }
 
     async function generateToken() {
